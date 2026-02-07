@@ -131,7 +131,7 @@ uv run uvicorn app.main:app --reload
 
 The API will be available at:
 - API Base URL: `http://localhost:8000`
-- API Documentation (Scalar): `http://localhost:8000/scalar`
+- API Documentation (Scalar): `http://localhost:8000/docs`
 - OpenAPI Schema: `http://localhost:8000/openapi.json`
 
 ## API Endpoints
@@ -377,7 +377,7 @@ class StockCreate(BaseModel):
 
 Once the server is running, visit:
 
-- **Scalar UI**: `http://localhost:8000/scalar` - Beautiful, interactive API documentation
+- **Scalar UI**: `http://localhost:8000/docs` - Beautiful, interactive API documentation
 - **OpenAPI JSON**: `http://localhost:8000/openapi.json` - Machine-readable API specification
 
 ## Error Handling
