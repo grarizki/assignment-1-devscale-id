@@ -399,6 +399,216 @@ The API returns standard HTTP status codes:
 }
 ```
 
+## Database Migrations with Alembic
+
+This project uses Alembic for database schema versioning. Here's everything you need to know:
+
+### Using Alembic
+
+**Create a new migration after changing models:**
+```bash
+uv run alembic revision --autogenerate -m "description of change"
+```
+
+**Apply migrations:**
+```bash
+uv run alembic upgrade head
+```
+
+**Check current migration status:**
+```bash
+uv run alembic current
+```
+
+**View migration history:**
+```bash
+uv run alembic history
+```
+
+**Rollback one migration:**
+```bash
+uv run alembic downgrade -1
+```
+
+### Common Migration Issues and Solutions
+
+#### Issue 1: "Cannot add a NOT NULL column with default value NULL"
+
+**Error:**
+```
+sqlite3.OperationalError: Cannot add a NOT NULL column with default value NULL
+```
+
+**Cause:** Adding a required field to an existing table without specifying a default value for existing rows.
+
+**Solution:** Manually add `server_default` to the migration:
+
+```python
+# Generated migration (will fail):
+op.add_column('stocks', sa.Column('new_field', sa.VARCHAR(), nullable=False))
+
+# Fixed migration:
+op.add_column('stocks', sa.Column('new_field', sa.VARCHAR(),
+    nullable=False, server_default='default value'))
+```
+
+**Prevention:** Always make new fields optional initially:
+```python
+# In your model
+new_field: Optional[str] = Field(default=None)
+```
+
+#### Issue 2: "ALTER COLUMN syntax error" with SQLite
+
+**Error:**
+```
+sqlite3.OperationalError: near "ALTER": syntax error
+[SQL: ALTER TABLE stocks ALTER COLUMN "field" DROP NOT NULL]
+```
+
+**Cause:** SQLite has limited `ALTER COLUMN` support. It cannot:
+- Change column types
+- Change NULL/NOT NULL constraints
+- Add/remove defaults on existing columns
+
+**Solution:** Use batch mode operations. The migration should be wrapped in `batch_alter_table`:
+
+```python
+# Generated migration (will fail with SQLite):
+def upgrade():
+    op.alter_column('stocks', 'field_name', nullable=True)
+
+# Fixed migration for SQLite:
+def upgrade():
+    with op.batch_alter_table('stocks', schema=None) as batch_op:
+        batch_op.alter_column('field_name', nullable=True)
+```
+
+**Our Configuration:** The `alembic/env.py` is already configured with `render_as_batch=True` for automatic batch mode support.
+
+#### Issue 3: "Target database is not up to date"
+
+**Error:**
+```
+ERROR [alembic.util.messaging] Target database is not up to date.
+```
+
+**Cause:** You're trying to create a migration when there are pending migrations.
+
+**Solution:** Apply pending migrations first:
+```bash
+uv run alembic upgrade head
+```
+
+Then create your new migration:
+```bash
+uv run alembic revision --autogenerate -m "your change"
+```
+
+### Best Practices for Database Changes
+
+#### 1. Always Review Auto-Generated Migrations
+
+After running `alembic revision --autogenerate`, **always check** the generated file in `alembic/versions/`:
+
+```bash
+# Generate migration
+uv run alembic revision --autogenerate -m "add field"
+
+# Review the file
+cat alembic/versions/XXXXX_add_field.py
+
+# Make manual adjustments if needed
+# Then apply
+uv run alembic upgrade head
+```
+
+#### 2. Make New Fields Optional
+
+```python
+# ✅ Good - Easy to migrate
+new_field: Optional[str] = Field(default=None)
+
+# ⚠️ Requires careful migration handling
+new_field: str = Field(default="value")
+```
+
+#### 3. Two-Step Migration for Required Fields
+
+If a field must be NOT NULL:
+
+**Step 1:** Add as nullable with default
+```python
+# Migration 1
+op.add_column('stocks', sa.Column('new_field', sa.VARCHAR(),
+    nullable=True, server_default='default'))
+```
+
+**Step 2:** Populate data and make NOT NULL
+```python
+# Migration 2 (after data is populated)
+with op.batch_alter_table('stocks', schema=None) as batch_op:
+    batch_op.alter_column('new_field', nullable=False)
+```
+
+#### 4. Testing Migrations
+
+Always test migrations on a fresh database:
+
+```bash
+# Backup current database
+cp database.db database.db.backup
+
+# Test fresh migration
+rm database.db
+uv run alembic upgrade head
+uv run python -m app.models.seed_data
+
+# If successful, restore or continue
+# If failed, restore backup: mv database.db.backup database.db
+```
+
+### SQLite vs PostgreSQL/MySQL
+
+**SQLite Limitations:**
+- Limited ALTER TABLE support
+- No concurrent writes
+- Good for development, not recommended for production
+
+**For Production:**
+Consider using PostgreSQL or MySQL where Alembic migrations work without batch mode complications.
+
+Update your `.env`:
+```env
+# PostgreSQL
+DATABASE_URL=postgresql://user:password@localhost/dbname
+
+# MySQL
+DATABASE_URL=mysql://user:password@localhost/dbname
+```
+
+### Migration Workflow Summary
+
+```bash
+# 1. Edit your model (app/models/database.py)
+
+# 2. Generate migration
+uv run alembic revision --autogenerate -m "description"
+
+# 3. Review generated file in alembic/versions/
+
+# 4. Fix any SQLite-specific issues:
+#    - Add server_default for NOT NULL columns
+#    - Wrap ALTER COLUMN in batch_alter_table
+
+# 5. Apply migration
+uv run alembic upgrade head
+
+# 6. Verify
+uv run alembic current
+sqlite3 database.db "PRAGMA table_info(stocks);"
+```
+
 ## Contributing
 
 1. Fork the repository

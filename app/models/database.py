@@ -9,3 +9,4 @@ class Stocks(SQLModel, table=True):
     sector: Optional[str] = Field(default=None, description="Business sector")
     current_price: Optional[float] = Field(default=None, description="Current stock price")
     description: Optional[str] = Field(default=None, description="Company description")
+    stockFrom: Optional[str] = Field(default="Stock from where")
