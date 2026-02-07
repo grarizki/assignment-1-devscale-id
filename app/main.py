@@ -12,7 +12,7 @@ app = FastAPI(
 app.include_router(auth_router)
 app.include_router(stocks_router)
 
-@app.get("/scalar")
+@app.get("/docs")
 def get_scalar():
     return get_scalar_api_reference(
         openapi_url=app.openapi_url,
