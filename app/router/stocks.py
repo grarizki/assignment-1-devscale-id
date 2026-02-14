@@ -1,75 +1,37 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Query
 from sqlmodel import Session, select
 from app.models.database import Stocks
 from app.schema.stocks import StockCreate, StockResponse, StockUpdate, StockList
-from app.models.engine import engine, get_db
+from app.models.engine import get_db
+from app.models.seed_data import seed_stocks
+from app.utils.pagination import paginate_query
+from app.utils.stock_helpers import (
+    get_stock_or_404,
+    check_ticker_exists,
+    normalize_ticker,
+)
 from typing import Optional
 
 stocks_router = APIRouter(prefix="/stocks", tags=["Stocks"])
 
 
-def seed_dummy_stocks():
-    """Seed database with dummy Indonesian stocks"""
-    dummy_stocks = [
-        {
-            "ticker": "BBCA",
-            "name": "PT Bank Central Asia Tbk",
-            "sector": "Banking",
-            "current_price": 9800.0,
-            "description": "Largest private bank in Indonesia by market capitalization"
-        },
-        {
-            "ticker": "BMRI",
-            "name": "PT Bank Mandiri (Persero) Tbk",
-            "sector": "Banking",
-            "current_price": 6250.0,
-            "description": "Indonesia's largest bank by assets"
-        },
-        {
-            "ticker": "BBRI",
-            "name": "PT Bank Rakyat Indonesia (Persero) Tbk",
-            "sector": "Banking",
-            "current_price": 5100.0,
-            "description": "State-owned bank focusing on micro and small enterprises"
-        },
-        {
-            "ticker": "BUMI",
-            "name": "PT Bumi Resources Tbk",
-            "sector": "Mining",
-            "current_price": 142.0,
-            "description": "Coal mining company operating in Kalimantan"
-        }
-    ]
-
-    with Session(engine) as session:
-        for stock_data in dummy_stocks:
-            # Check if stock already exists
-            existing = session.exec(
-                select(Stocks).where(Stocks.ticker == stock_data["ticker"])
-            ).first()
-
-            if not existing:
-                stock = Stocks(**stock_data)
-                session.add(stock)
-
-        session.commit()
-
-
-@stocks_router.post("/", response_model=StockResponse, status_code=status.HTTP_201_CREATED)
+@stocks_router.post(
+    "/", response_model=StockResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_stock(stock: StockCreate, session: Session = Depends(get_db)):
     """Create a new stock"""
-    # Check if ticker already exists
-    existing = session.exec(
-        select(Stocks).where(Stocks.ticker == stock.ticker)
-    ).first()
+    normalized_ticker = normalize_ticker(stock.ticker)
 
-    if existing:
+    if check_ticker_exists(session, normalized_ticker):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Stock with ticker {stock.ticker} already exists"
+            detail=f"Stock with ticker {normalized_ticker} already exists",
         )
 
-    db_stock = Stocks(**stock.model_dump())
+    stock_data = stock.model_dump()
+    stock_data["ticker"] = normalized_ticker
+
+    db_stock = Stocks(**stock_data)
     session.add(db_stock)
     session.commit()
     session.refresh(db_stock)
@@ -79,10 +41,10 @@ async def create_stock(stock: StockCreate, session: Session = Depends(get_db)):
 
 @stocks_router.get("/", response_model=StockList)
 async def get_stocks(
-    page: int = 1,
-    page_size: int = 10,
-    sector: Optional[str] = None,
-    session: Session = Depends(get_db)
+    page: int = Query(1, ge=1, description="Page number (starts from 1)"),
+    page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    sector: Optional[str] = Query(None, description="Filter by sector"),
+    session: Session = Depends(get_db),
 ):
     """Get paginated list of stocks"""
     query = select(Stocks)
@@ -90,57 +52,40 @@ async def get_stocks(
     if sector:
         query = query.where(Stocks.sector == sector)
 
-    # Get total count
-    total = len(session.exec(query).all())
-
-    # Apply pagination
-    offset = (page - 1) * page_size
-    stocks_db = session.exec(query.offset(offset).limit(page_size)).all()
-    stocks = [StockResponse.model_validate(stock) for stock in stocks_db]
+    # Use pagination utility (FIXES PERFORMANCE BUG - no more .all())
+    result = paginate_query(session, query, page, page_size)
+    stocks = [StockResponse.model_validate(s) for s in result.items]
 
     return StockList(
-        stocks=stocks,
-        total=total,
-        page=page,
-        page_size=page_size
+        stocks=stocks, total=result.total, page=result.page, page_size=result.page_size
     )
 
 
 @stocks_router.get("/{ticker}", response_model=StockResponse)
 async def get_stock(ticker: str, session: Session = Depends(get_db)):
     """Get a specific stock by ticker symbol"""
-    stock = session.exec(
-        select(Stocks).where(Stocks.ticker == ticker.upper())
-    ).first()
-
-    if not stock:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Stock with ticker {ticker} not found"
-        )
-
-    return stock
+    return get_stock_or_404(session, ticker)
 
 
 @stocks_router.patch("/{ticker}", response_model=StockResponse)
 async def update_stock(
-    ticker: str,
-    stock_update: StockUpdate,
-    session: Session = Depends(get_db)
+    ticker: str, stock_update: StockUpdate, session: Session = Depends(get_db)
 ):
     """Update a stock by ticker symbol"""
-    stock = session.exec(
-        select(Stocks).where(Stocks.ticker == ticker.upper())
-    ).first()
+    stock = get_stock_or_404(session, ticker)
 
-    if not stock:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Stock with ticker {ticker} not found"
-        )
-
-    # Update only provided fields
     update_data = stock_update.model_dump(exclude_unset=True)
+
+    # If updating ticker, check for duplicates
+    if "ticker" in update_data:
+        new_ticker = normalize_ticker(update_data["ticker"])
+        if new_ticker != stock.ticker and check_ticker_exists(session, new_ticker):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Stock with ticker {new_ticker} already exists",
+            )
+        update_data["ticker"] = new_ticker
+
     for key, value in update_data.items():
         setattr(stock, key, value)
 
@@ -154,28 +99,19 @@ async def update_stock(
 @stocks_router.delete("/{ticker}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_stock(ticker: str, session: Session = Depends(get_db)):
     """Delete a stock by ticker symbol"""
-    stock = session.exec(
-        select(Stocks).where(Stocks.ticker == ticker.upper())
-    ).first()
-
-    if not stock:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Stock with ticker {ticker} not found"
-        )
-
+    stock = get_stock_or_404(session, ticker)
     session.delete(stock)
     session.commit()
 
 
 @stocks_router.post("/seed", status_code=status.HTTP_200_OK)
-async def seed_stocks():
+async def seed_stocks_endpoint():
     """Seed database with dummy stocks (BBCA, BMRI, BBRI, BUMI)"""
     try:
-        seed_dummy_stocks()
+        seed_stocks()
         return {"message": "Dummy stocks seeded successfully"}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error seeding stocks: {str(e)}"
+            detail=f"Error seeding stocks: {str(e)}",
         )

@@ -4,17 +4,12 @@ from fastapi import FastAPI
 from app.core.settings import settings
 from scalar_fastapi import get_scalar_api_reference
 
-app = FastAPI(
-    title=settings.APP_NAME,
-    version=settings.VERSION
-)
+app = FastAPI(title=settings.APP_NAME, version=settings.VERSION)
 
 app.include_router(auth_router)
 app.include_router(stocks_router)
 
-@app.get("/docs")
+
+@app.get("/scalar")
 def get_scalar():
-    return get_scalar_api_reference(
-        openapi_url=app.openapi_url,
-        title=app.title
-    )
+    return get_scalar_api_reference(openapi_url=app.openapi_url, title=app.title)
