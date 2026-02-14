@@ -9,4 +9,11 @@ wheels/
 # Virtual environments
 .venv
 
+# Environment variables
 .env
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+database.db
