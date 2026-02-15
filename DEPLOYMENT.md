@@ -4,9 +4,17 @@
 
 This project uses GitHub Actions for automated testing and deployment to your VPS.
 
-### Pipeline Overview
+### Workflows
 
-The CI/CD pipeline runs in two stages:
+#### 1. **Development Workflow** (`.github/workflows/development.yml`)
+Runs on `development`, `dev`, or `develop` branches:
+- Checks code formatting with `ruff format --check`
+- Lints code with `ruff check`
+- Runs test suite with `pytest`
+- **No deployment** - for testing before merging to master
+
+#### 2. **CI/CD Workflow** (`.github/workflows/ci.yml`)
+Runs on `master` branch in two stages:
 
 1. **Test & Lint** (runs on all pushes and PRs)
    - Checks code formatting with `ruff format --check`
