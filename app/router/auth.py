@@ -1,6 +1,5 @@
 from app.schema.auth import LoginRequest
-from app.utils.query_params import standard_params
-from fastapi import APIRouter, Query, Header, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 
 auth_router = APIRouter(tags=["Auth"])
 

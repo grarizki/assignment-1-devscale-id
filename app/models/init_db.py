@@ -5,7 +5,6 @@ Run this to create all tables in the database
 
 from sqlmodel import SQLModel
 from app.models.engine import engine
-from app.models.database import Stocks  # Import all models here
 
 
 def init_db():
