@@ -173,7 +173,9 @@ class TestUpdateStock:
         """Test updating stock name"""
         client.post("/stocks/", json=sample_stock_data)
         update_data = {"name": "Bank Central Asia Tbk"}
-        response = client.patch(f"/stocks/{sample_stock_data['ticker']}", json=update_data)
+        response = client.patch(
+            f"/stocks/{sample_stock_data['ticker']}", json=update_data
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == "Bank Central Asia Tbk"
@@ -183,7 +185,9 @@ class TestUpdateStock:
         """Test updating stock price"""
         client.post("/stocks/", json=sample_stock_data)
         update_data = {"current_price": 9000.0}
-        response = client.patch(f"/stocks/{sample_stock_data['ticker']}", json=update_data)
+        response = client.patch(
+            f"/stocks/{sample_stock_data['ticker']}", json=update_data
+        )
         assert response.status_code == 200
         assert response.json()["current_price"] == 9000.0
 
@@ -191,11 +195,15 @@ class TestUpdateStock:
         """Test updating stock ticker"""
         client.post("/stocks/", json=sample_stock_data)
         update_data = {"ticker": "BBCA2"}
-        response = client.patch(f"/stocks/{sample_stock_data['ticker']}", json=update_data)
+        response = client.patch(
+            f"/stocks/{sample_stock_data['ticker']}", json=update_data
+        )
         assert response.status_code == 200
         assert response.json()["ticker"] == "BBCA2"
 
-    def test_update_stock_duplicate_ticker(self, client: TestClient, sample_stocks_list):
+    def test_update_stock_duplicate_ticker(
+        self, client: TestClient, sample_stocks_list
+    ):
         """Test updating ticker to an existing one fails"""
         # Create two stocks
         client.post("/stocks/", json=sample_stocks_list[0])  # BBCA
@@ -219,7 +227,9 @@ class TestUpdateStock:
 
         # Update only price
         update_data = {"current_price": 10000.0}
-        response = client.patch(f"/stocks/{sample_stock_data['ticker']}", json=update_data)
+        response = client.patch(
+            f"/stocks/{sample_stock_data['ticker']}", json=update_data
+        )
         data = response.json()
         assert data["current_price"] == 10000.0
         assert data["name"] == original_name  # Should remain unchanged

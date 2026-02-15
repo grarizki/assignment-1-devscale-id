@@ -5,7 +5,11 @@ Tests for utility functions
 import pytest
 from sqlmodel import Session
 from fastapi import HTTPException
-from app.utils.stock_helpers import normalize_ticker, get_stock_or_404, check_ticker_exists
+from app.utils.stock_helpers import (
+    normalize_ticker,
+    get_stock_or_404,
+    check_ticker_exists,
+)
 from app.utils.pagination import PaginationParams
 from app.models.database import Stocks
 
