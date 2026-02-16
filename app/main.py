@@ -1,5 +1,5 @@
-from app.router.auth import auth_router
-from app.router.stocks import stocks_router
+from app.modules.auth.router import auth_router
+from app.modules.stock.router import stocks_router
 from fastapi import FastAPI
 from app.core.settings import settings
 from scalar_fastapi import get_scalar_api_reference

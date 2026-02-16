@@ -3,6 +3,13 @@ from sqlmodel import SQLModel, Field
 from typing import Optional
 
 
+class User(SQLModel, table=True):
+    id: uuid.UUID = Field(primary_key=True, default_factory=uuid.uuid4)
+    name: str = Field(description="User's full name")
+    email: str = Field(index=True, unique=True, description="User's email address")
+    password: str = Field(description="Hashed password")
+
+
 class Stocks(SQLModel, table=True):
     id: uuid.UUID = Field(primary_key=True, default_factory=uuid.uuid4)
     ticker: str = Field(

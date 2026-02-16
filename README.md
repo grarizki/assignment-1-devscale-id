@@ -350,7 +350,7 @@ The API uses FastAPI's dependency injection for database sessions:
 
 ```python
 @stocks_router.get("/{ticker}")
-async def get_stock(ticker: str, session: Session = Depends(get_db)):
+async def get_stock(ticker: str, session: Session = Depends(db_session)):
     # session is automatically provided and managed
     stock = session.exec(select(Stocks).where(Stocks.ticker == ticker)).first()
     return stock

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Query
 from sqlmodel import Session, select
 from app.models.database import Stocks
-from app.schema.stocks import StockCreate, StockResponse, StockUpdate, StockList
-from app.models.engine import get_db
+from app.modules.stock.schema import StockCreate, StockResponse, StockUpdate, StockList
+from app.models.engine import db_session
 from app.models.seed_data import seed_stocks
 from app.utils.pagination import paginate_query
 from app.utils.stock_helpers import (
@@ -18,7 +18,7 @@ stocks_router = APIRouter(prefix="/stocks", tags=["Stocks"])
 @stocks_router.post(
     "/", response_model=StockResponse, status_code=status.HTTP_201_CREATED
 )
-async def create_stock(stock: StockCreate, session: Session = Depends(get_db)):
+async def create_stock(stock: StockCreate, session: Session = Depends(db_session)):
     """Create a new stock"""
     normalized_ticker = normalize_ticker(stock.ticker)
 
@@ -44,7 +44,7 @@ async def get_stocks(
     page: int = Query(1, ge=1, description="Page number (starts from 1)"),
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     sector: Optional[str] = Query(None, description="Filter by sector"),
-    session: Session = Depends(get_db),
+    session: Session = Depends(db_session),
 ):
     """Get paginated list of stocks"""
     query = select(Stocks)
@@ -62,14 +62,14 @@ async def get_stocks(
 
 
 @stocks_router.get("/{ticker}", response_model=StockResponse)
-async def get_stock(ticker: str, session: Session = Depends(get_db)):
+async def get_stock(ticker: str, session: Session = Depends(db_session)):
     """Get a specific stock by ticker symbol"""
     return get_stock_or_404(session, ticker)
 
 
 @stocks_router.patch("/{ticker}", response_model=StockResponse)
 async def update_stock(
-    ticker: str, stock_update: StockUpdate, session: Session = Depends(get_db)
+    ticker: str, stock_update: StockUpdate, session: Session = Depends(db_session)
 ):
     """Update a stock by ticker symbol"""
     stock = get_stock_or_404(session, ticker)
@@ -97,7 +97,7 @@ async def update_stock(
 
 
 @stocks_router.delete("/{ticker}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_stock(ticker: str, session: Session = Depends(get_db)):
+async def delete_stock(ticker: str, session: Session = Depends(db_session)):
     """Delete a stock by ticker symbol"""
     stock = get_stock_or_404(session, ticker)
     session.delete(stock)

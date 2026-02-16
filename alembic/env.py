@@ -13,6 +13,7 @@ from config import DATABASE_URL
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Import all models so Alembic can detect them
+from app.models.database import User, Stocks
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
